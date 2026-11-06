@@ -156,6 +156,18 @@ VM data lives in `~/Library/Application Support/terminal-mac/machines/NAME/`. `T
 
 An interrupted or failed installation leaves its directory and `installed: false` for diagnosis. It is never silently overwritten. To retry, ensure no installer/VM is running, move that incomplete directory aside, then create the VM again. There is deliberately no destructive VM-delete command yet.
 
+## Userspace networking (optional, for hosts behind a VPN client)
+
+The default NAT uses vmnet (`bridge100`, `192.168.64.0/24`). Some VPN clients (for example Cisco AnyConnect in tunnel-all mode) capture that subnet's routes, so the guest gets an address but no connectivity and the host cannot reach the guest. Setting `TERMINAL_MAC_GVPROXY` to a [gvproxy](https://github.com/containers/gvisor-tap-vsock/releases) binary makes the VM use userspace networking instead (the approach Podman and Lima use): frames go to a `gvproxy` child process, which talks to the network like any other host process, so VPN routes apply.
+
+```sh
+export TERMINAL_MAC_GVPROXY=/absolute/path/to/gvproxy   # then start the VM as usual
+```
+
+- Guest network: `192.168.127.0/24`, gateway `192.168.127.1`. gvproxy maps `192.168.127.254` to the host's `127.0.0.1`, so a service listening on the host's localhost is reachable from the guest at `http://192.168.127.254:PORT`.
+- gvproxy is started with `-ssh-port -1` (no forward into the guest) and stopped when the VM process exits.
+- Unset the variable to go back to NAT. `--offline` still removes the NIC.
+
 ## Isolation model
 
 - Host input and screen APIs are not used for agent actions. The helper refuses to run unless `hw.model` starts with `VirtualMac`. That check prevents accidental host execution; it is not hardware attestation or a defense against a compromised host.

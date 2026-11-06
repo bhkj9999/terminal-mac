@@ -5,7 +5,7 @@ import Darwin
 
 @MainActor
 enum VirtualMachines {
-    static func configuration(_ machine: Machine, at directory: URL, tools: URL?) throws -> VZVirtualMachineConfiguration {
+    static func configuration(_ machine: Machine, at directory: URL, tools: URL?, runtime: Bool = false) throws -> VZVirtualMachineConfiguration {
         let config = VZVirtualMachineConfiguration()
         config.bootLoader = VZMacOSBootLoader()
         config.cpuCount = machine.cpu
@@ -31,7 +31,13 @@ enum VirtualMachines {
         config.entropyDevices = [VZVirtioEntropyDeviceConfiguration()]
         if machine.network {
             let network = VZVirtioNetworkDeviceConfiguration()
-            network.attachment = VZNATNetworkDeviceAttachment()
+            // TERMINAL_MAC_GVPROXY=/path/to/gvproxy: userspace networking instead of vmnet NAT, for hosts
+            // whose VPN client captures the vmnet bridge's routes. Only when actually running the VM.
+            if runtime, let userspace = try UserspaceNetwork.attachment(for: machine, binary: ProcessInfo.processInfo.environment["TERMINAL_MAC_GVPROXY"]) {
+                network.attachment = userspace
+            } else {
+                network.attachment = VZNATNetworkDeviceAttachment()
+            }
             config.networkDevices = [network]
         }
         var shares: [String: VZSharedDirectory] = ["control": VZSharedDirectory(url: directory.appendingPathComponent("exchange"), readOnly: false)]
@@ -115,7 +121,7 @@ final class MachineRuntime: NSObject, VZVirtualMachineDelegate, NSWindowDelegate
         guard lock >= 0 else { throw Failure("Cannot open VM lock") }
         guard flock(lock, LOCK_EX | LOCK_NB) == 0 else { close(lock); throw Failure("VM is already running") }
         mailbox = try Mailbox(directory.appendingPathComponent("host-control"), create: true)
-        vm = VZVirtualMachine(configuration: try VirtualMachines.configuration(machine, at: directory, tools: tools))
+        vm = VZVirtualMachine(configuration: try VirtualMachines.configuration(machine, at: directory, tools: tools, runtime: true))
         super.init()
         vm.delegate = self
     }
