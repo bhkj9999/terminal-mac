@@ -161,8 +161,12 @@ An interrupted or failed installation leaves its directory and `installed: false
 The default NAT uses vmnet (`bridge100`, `192.168.64.0/24`). Some VPN clients (for example Cisco AnyConnect in tunnel-all mode) capture that subnet's routes, so the guest gets an address but no connectivity and the host cannot reach the guest. Setting `TERMINAL_MAC_GVPROXY` to a [gvproxy](https://github.com/containers/gvisor-tap-vsock/releases) binary makes the VM use userspace networking instead (the approach Podman and Lima use): frames go to a `gvproxy` child process, which talks to the network like any other host process, so VPN routes apply.
 
 ```sh
-export TERMINAL_MAC_GVPROXY=/absolute/path/to/gvproxy   # then start the VM as usual
+bash scripts/fetch-gvproxy.sh                            # downloads gvproxy v0.9.0, verifies SHA-256 → ~/.local/bin/gvproxy
+bash scripts/probe-userspace-network.sh ~/.local/bin/gvproxy   # no VM needed: PASS means guest→host-localhost works (run it with the VPN connected)
+export TERMINAL_MAC_GVPROXY=$HOME/.local/bin/gvproxy     # then start the VM as usual
 ```
+
+Extra gvproxy flags for debugging go in `TERMINAL_MAC_GVPROXY_ARGS`, for example `"-debug -log-file /tmp/gv.log -pcap /tmp/gv.pcap"`.
 
 - Guest network: `192.168.127.0/24`, gateway `192.168.127.1`. gvproxy maps `192.168.127.254` to the host's `127.0.0.1`, so a service listening on the host's localhost is reachable from the guest at `http://192.168.127.254:PORT`.
 - gvproxy is started with `-ssh-port -1` (no forward into the guest) and stopped when the VM process exits.

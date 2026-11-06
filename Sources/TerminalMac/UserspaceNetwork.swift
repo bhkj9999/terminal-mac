@@ -27,7 +27,9 @@ enum UserspaceNetwork {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binary)
         // -ssh-port -1: no forward of localhost:2222 into the guest.
-        process.arguments = ["-listen-vfkit", "unixgram://" + server, "-ssh-port", "-1", "-pid-file", pidFile]
+        // TERMINAL_MAC_GVPROXY_ARGS adds gvproxy flags for debugging, e.g. "-debug -log-file /tmp/gv.log -pcap /tmp/gv.pcap".
+        let extra = (ProcessInfo.processInfo.environment["TERMINAL_MAC_GVPROXY_ARGS"] ?? "").split(separator: " ").map(String.init)
+        process.arguments = ["-listen-vfkit", "unixgram://" + server, "-ssh-port", "-1", "-pid-file", pidFile] + extra
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
